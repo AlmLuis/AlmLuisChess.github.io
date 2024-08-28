@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juego de Ajedrez</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .game-container {
+            text-align: center;
+        }
+        .board {
+            display: inline-grid;
+            grid-template-columns: repeat(8, 50px);
+            grid-template-rows: repeat(8, 50px);
+            gap: 1px;
+            padding: 10px;
+            background-color: #8B4513;
+        }
+        .square {
+            width: 50px;
+            height: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 30px;
+            cursor: pointer;
+        }
+        .light {
+            background-color: #F0D9B5;
+        }
+        .dark {
+            background-color: #B58863;
+        }
+        .selected {
+            background-color: #ffff00;
+        }
+        .possible-move {
+            background-color: #00ff00;
+        }
+        .player-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .warning {
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>Juego de Ajedrez</h1>
+        <div class="player-info">
+            <div>DEMIAN (Blancas): <span id="white-time">10:00</span></div>
+            <div>GENARO (Negras): <span id="black-time">10:00</span></div>
+        </div>
+        <div id="board" class="board"></div>
+        <div id="current-player">Turno actual: DEMIAN (Blancas)</div>
+        <div id="warning" class="warning"></div>
+    </div>
+
+    <script>
+        const pieces = {
+            'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚',
+            'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔'
+        };
+
+        let board = [
+            ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'],
+            ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'],
+            Array(8).fill(null),
+            Array(8).fill(null),
+            Array(8).fill(null),
+            Array(8).fill(null),
+            ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'],
+            ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R']
+        ];
+
+        let selectedPiece = null;
+        let currentPlayer = 'white';
+        let possibleMoves = [];
+        let time = { white: 600, black: 600 };
+
+        function createBoard() {
+            const boardElement = document.getElementById('board');
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const square = document.createElement('div');
+                    square.className = `square ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
+                    square.dataset.row = row;
+                    square.dataset.col = col;
+                    square.addEventListener('click', () => handleClick(row, col));
+                    boardElement.appendChild(square);
+                }
+            }
+            updateBoard();
+        }
+
+        function updateBoard() {
+            const squares = document.querySelectorAll('.square');
+            squares.forEach(square => {
+                const row = parseInt(square.dataset.row);
+                const col = parseInt(square.dataset.col);
+                square.textContent = board[row][col] ? pieces[board[row][col]] : '';
+                square.className = `square ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
+                if (selectedPiece && selectedPiece.row === row && selectedPiece.col === col) {
+                    square.classList.add('selected');
+                }
+                if (possibleMoves.some(move => move.row === row && move.col === col)) {
+                    square.classList.add('possible-move');
+                }
+            });
+        }
+
+        function isValidMove(startRow, startCol, endRow, endCol) {
+            const piece = board[startRow][startCol].toLowerCase();
+            const isWhite = board[startRow][startCol] === board[startRow][startCol].toUpperCase();
+            const rowDiff = endRow - startRow;
+            const colDiff = endCol - startCol;
+
+            if (board[endRow][endCol] && 
+                (isWhite === (board[endRow][endCol] === board[endRow][endCol].toUpperCase()))) {
+                return false;
+            }
+
+            switch (piece) {
+                case 'p':
+                    if (isWhite) {
+                        if (rowDiff === -1 && colDiff === 0 && !board[endRow][endCol]) return true;
+                        if (rowDiff === -2 && colDiff === 0 && startRow === 6 && !board[endRow][endCol] && !board[endRow + 1][endCol]) return true;
+                        if (rowDiff === -1 && Math.abs(colDiff) === 1 && board[endRow][endCol]) return true;
+                    } else {
+                        if (rowDiff === 1 && colDiff === 0 && !board[endRow][endCol]) return true;
+                        if (rowDiff === 2 && colDiff === 0 && startRow === 1 && !board[endRow][endCol] && !board[endRow - 1][endCol]) return true;
+                        if (rowDiff === 1 && Math.abs(colDiff) === 1 && board[endRow][endCol]) return true;
+                    }
+                    return false;
+                case 'r':
+                    if (rowDiff === 0 || colDiff === 0) {
+                        const step = rowDiff !== 0 ? Math.sign(rowDiff) : Math.sign(colDiff);
+                        for (let i = 1; i < Math.max(Math.abs(rowDiff), Math.abs(colDiff)); i++) {
+                            if (board[startRow + i * (rowDiff !== 0 ? step : 0)][startCol + i * (colDiff !== 0 ? step : 0)]) return false;
+                        }
+                        return true;
+                    }
+                    return false;
+                case 'n':
+                    return (Math.abs(rowDiff) === 2 && Math.abs(colDiff) === 1) || (Math.abs(rowDiff) === 1 && Math.abs(colDiff) === 2);
+                case 'b':
+                    if (Math.abs(rowDiff) === Math.abs(colDiff)) {
+                        const stepRow = Math.sign(rowDiff);
+                        const stepCol = Math.sign(colDiff);
+                        for (let i = 1; i < Math.abs(rowDiff); i++) {
+                            if (board[startRow + i * stepRow][startCol + i * stepCol]) return false;
+                        }
+                        return true;
+                    }
+                    return false;
+                case 'q':
+                    if (rowDiff === 0 || colDiff === 0 || Math.abs(rowDiff) === Math.abs(colDiff)) {
+                        const stepRow = rowDiff !== 0 ? Math.sign(rowDiff) : 0;
+                        const stepCol = colDiff !== 0 ? Math.sign(colDiff) : 0;
+                        for (let i = 1; i < Math.max(Math.abs(rowDiff), Math.abs(colDiff)); i++) {
+                            if (board[startRow + i * stepRow][startCol + i * stepCol]) return false;
+                        }
+                        return true;
+                    }
+                    return false;
+                case 'k':
+                    return Math.abs(rowDiff) <= 1 && Math.abs(colDiff) <= 1;
+                default:
+                    return false;
+            }
+        }
+
+        function handleClick(row, col) {
+            if (selectedPiece) {
+                if (isValidMove(selectedPiece.row, selectedPiece.col, row, col)) {
+                    board[row][col] = board[selectedPiece.row][selectedPiece.col];
+                    board[selectedPiece.row][selectedPiece.col] = null;
+                    currentPlayer = currentPlayer === 'white' ? 'black' : 'white';
+                    document.getElementById('current-player').textContent = `Turno actual: ${currentPlayer === 'white' ? 'DEMIAN (Blancas)' : 'GENARO (Negras)'}`;
+                    document.getElementById('warning').textContent = '';
+                } else {
+                    document.getElementById('warning').textContent = 'Movimiento inválido. Por favor, intenta de nuevo.';
+                }
+                selectedPiece = null;
+                possibleMoves = [];
+            } else if (board[row][col]) {
+                const pieceColor = board[row][col] === board[row][col].toUpperCase() ? 'white' : 'black';
+                if (pieceColor === currentPlayer) {
+                    selectedPiece = { row, col };
+                    possibleMoves = [];
+                    for (let i = 0; i < 8; i++) {
+                        for (let j = 0; j < 8; j++) {
+                            if (isValidMove(row, col, i, j)) {
+                                possibleMoves.push({ row: i, col: j });
+                            }
+                        }
+                    }
+                    document.getElementById('warning').textContent = '';
+                } else {
+                    document.getElementById('warning').textContent = 'No es tu turno. Por favor, selecciona una pieza de tu color.';
+                }
+            }
+            updateBoard();
+        }
+
+        function updateTime() {
+            time[currentPlayer]--;
+            const minutes = Math.floor(time[currentPlayer] / 60);
+            const seconds = time[currentPlayer] % 60;
+            document.getElementById(`${currentPlayer}-time`).textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            if (time[currentPlayer] <= 0) {
+                alert(`¡Tiempo agotado! ${currentPlayer === 'white' ? 'GENARO (Negras)' : 'DEMIAN (Blancas)'} gana.`);
+                clearInterval(timerInterval);
+            }
+        }
+
+        createBoard();
+        const timerInterval = setInterval(updateTime, 1000);
+    </script>
+</body>
+</html>
